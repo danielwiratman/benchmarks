@@ -29,6 +29,9 @@ locals {
   cloud_config_my = templatefile("${path.module}/cloud-config-my.yml", {
     public_key = file(var.ssh_public_key_path)
   })
+  cloud_config_benchmarker = templatefile("${path.module}/cloud-config-benchmarker.yml", {
+    public_key = file(var.ssh_public_key_path)
+  })
 }
 
 resource "digitalocean_ssh_key" "deployer" {
@@ -57,6 +60,15 @@ resource "digitalocean_droplet" "mybenchvm-my" {
   user_data = local.cloud_config_my
 }
 
+resource "digitalocean_droplet" "mybenchvm-benchmarker" {
+  image    = "ubuntu-24-04-x64"
+  name     = "mybenchvm-benchmarker"
+  region   = "sgp1"
+  size     = "s-2vcpu-2gb"
+  ssh_keys = [digitalocean_ssh_key.deployer.fingerprint]
+
+  user_data = local.cloud_config_benchmarker
+}
 
 output "pg_public_ip" {
   value = digitalocean_droplet.mybenchvm-pg.ipv4_address
@@ -66,3 +78,6 @@ output "my_public_ip" {
   value = digitalocean_droplet.mybenchvm-my.ipv4_address
 }
 
+output "benchmarker_public_ip" {
+  value = digitalocean_droplet.mybenchvm-benchmarker.ipv4_address
+}
