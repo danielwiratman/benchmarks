@@ -1,0 +1,190 @@
+- hosts: db
+  handlers:
+    - name: restart postgresql
+      service:
+        name: postgresql
+        state: restarted
+
+    - name: restart mysql
+      service:
+        name: mysql
+        state: restarted
+
+  vars:
+    benchmarker_ip: "{{ hostvars['mybenchvm-benchmarker']['ansible_host'] }}"
+
+  tasks:
+    - name: Install PostgreSQL
+      tags: postgres
+      block:
+        - name: Create directory for PostgreSQL GPG key
+          file:
+            path: /usr/share/postgresql-common/pgdg
+            state: directory
+            mode: "0755"
+
+        - name: Download PostgreSQL repository signing key
+          get_url:
+            url: https://www.postgresql.org/media/keys/ACCC4CF8.asc
+            dest: /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc
+            mode: "0644"
+
+        - name: Add PostgreSQL APT repository
+          apt_repository:
+            repo: "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt {{ ansible_facts['lsb']['codename'] }}-pgdg main"
+            filename: pgdg
+
+        - name: Update package cache
+          become: true
+          apt:
+            update_cache: true
+            cache_valid_time: 3600
+
+        - name: Install PostgreSQL
+          apt:
+            name:
+              - postgresql-18
+            state: present
+
+        - name: Start PostgreSQL
+          service:
+            name: postgresql
+            state: started
+            enabled: true
+
+    - name: Install MySQL
+      tags: mysql
+      block:
+        - name: Get mysql-apt-config
+          shell: >
+            curl -L -o /tmp/mysql-apt-config_0.8.36-1_all.deb
+            https://dev.mysql.com/get/mysql-apt-config_0.8.36-1_all.deb
+          args:
+            creates: /tmp/mysql-apt-config_0.8.36-1_all.deb
+
+        - name: Install mysql-apt-config
+          apt:
+            deb: /tmp/mysql-apt-config_0.8.36-1_all.deb
+            state: present
+
+        - name: Update package cache
+          become: true
+          apt:
+            update_cache: true
+            cache_valid_time: 3600
+
+        - name: Install MySQL
+          apt:
+            name:
+              - mysql-server
+            state: present
+
+        - name: Start MySQL
+          service:
+            name: mysql
+            state: started
+            enabled: true
+
+    - name: Configure Postgres
+      tags: configure-pg
+      become: true
+      become_user: postgres
+      vars:
+        ansible_python_interpreter: /opt/venv/bin/python
+      block:
+        - name: Configure PostgreSQL to listen on all interfaces
+          lineinfile:
+            path: /etc/postgresql/18/main/postgresql.conf
+            regexp: "^#?listen_addresses"
+            line: "listen_addresses = '*'"
+
+        - name: Allow benchmarker host in pg_hba.conf
+          lineinfile:
+            path: /etc/postgresql/18/main/pg_hba.conf
+            insertafter: EOF
+            line: "host    all    postgres    {{ benchmarker_ip }}/32    scram-sha-256"
+
+        - name: Ensure PostgreSQL user benchuser exists
+          community.postgresql.postgresql_user:
+            name: benchuser
+            password: benchuser
+            encrypted: true
+            login_unix_socket: /var/run/postgresql
+            db: postgres
+            state: present
+
+        - name: Alter user postgres with password "postgres"
+          community.postgresql.postgresql_user:
+            name: postgres
+            password: postgres
+            encrypted: true
+            login_unix_socket: /var/run/postgresql
+            db: postgres
+            state: present
+
+        - name: Create PostgreSQL database benchdb
+          community.postgresql.postgresql_db:
+            name: benchdb
+            owner: benchuser
+            login_unix_socket: /var/run/postgresql
+            login_user: postgres
+            state: present
+          notify: restart postgresql
+
+    - name: Configure MySQL
+      tags: configure-my
+      become: true
+      vars:
+        ansible_python_interpreter: /opt/venv/bin/python
+      block:
+        - name: Configure MySQL to listen on all interfaces
+          lineinfile:
+            path: /etc/mysql/mysql.conf.d/mysqld.cnf
+            regexp: "^#?bind-address"
+            line: "bind-address = 0.0.0.0"
+          notify: restart mysql
+
+        - name: Create MySQL database benchdb
+          community.mysql.mysql_db:
+            name: benchdb
+            login_unix_socket: /var/run/mysqld/mysqld.sock
+            state: present
+
+        - name: Create MySQL user benchuser
+          community.mysql.mysql_user:
+            name: benchuser
+            priv: "*.*:ALL,GRANT"
+            host: "%"
+            login_unix_socket: /var/run/mysqld/mysqld.sock
+            plugin: caching_sha2_password
+            plugin_auth_string: benchuser
+            salt: 1234567890abcdefghij
+            state: present
+
+    - name: Upload init.sql
+      become: true
+      tags: upload
+      copy:
+        src: ../../../sql
+        dest: /opt/
+        mode: "0644"
+
+    - name: Apply init sql to dbs
+      become: true
+      tags: apply
+      block:
+        - name: Apply init sql to PostgreSQL
+          community.postgresql.postgresql_script:
+            login_user: benchuser
+            login_password: benchuser
+            login_host: localhost
+            db: benchdb
+            path: /opt/sql/postgres-init.sql
+        - name: Apply init sql to MySQL
+          community.mysql.mysql_db:
+            login_user: benchuser
+            login_password: benchuser
+            login_host: localhost
+            name: benchdb
+            state: import
+            target: /opt/sql/mysql-init.sql

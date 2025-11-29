@@ -11,7 +11,7 @@ resource "digitalocean_ssh_key" "mybenchvm-key" {
 
 resource "digitalocean_droplet" "mybenchvm-db" {
   image    = "ubuntu-24-04-x64"
-  name     = "mybenchvm-my"
+  name     = "mybenchvm-db"
   region   = "sgp1"
   size     = "s-8vcpu-16gb-amd"
   ssh_keys = [digitalocean_ssh_key.mybenchvm-key.fingerprint]
@@ -42,7 +42,7 @@ resource "ansible_host" "db" {
   name = "mybenchvm-db"
   variables = {
     ansible_host                 = digitalocean_droplet.mybenchvm-db.ipv4_address
-    ansible_user                 = "root"
+    ansible_user                 = "ubuntu"
     ansible_ssh_private_key_file = var.ssh_private_key_path
   }
   groups = ["db"]
@@ -52,7 +52,7 @@ resource "ansible_host" "benchmarker" {
   name = "mybenchvm-benchmarker"
   variables = {
     ansible_host                 = digitalocean_droplet.mybenchvm-benchmarker.ipv4_address
-    ansible_user                 = "root"
+    ansible_user                 = "ubuntu"
     ansible_ssh_private_key_file = var.ssh_private_key_path
   }
   groups = ["benchmarker"]

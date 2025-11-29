@@ -1,5 +1,34 @@
 - hosts: all
   become: true
+  pre_tasks:
+    - name: Install things
+      apt:
+        name:
+          - python3-venv
+          - acl
+          - curl
+          - ca-certificates
+        state: present
+
+- hosts: db
+  become: true
   tasks:
-    - name: Ping all hosts
-      ansible.builtin.ping:
+    - name: Create system-wide virtualenv
+      command: python3 -m venv /opt/venv
+      args:
+        creates: /opt/venv
+
+    - name: Ensure permissions on virtualenv
+      file:
+        path: /opt/venv
+        state: directory
+        mode: "0755"
+        recurse: true
+
+    - name: Install Python packages
+      pip:
+        name:
+          - psycopg[binary,pool]
+          - PyMySQL[rsa]
+        virtualenv: /opt/venv
+        virtualenv_command: /usr/bin/python3 -m venv
