@@ -9,3 +9,6 @@ users:
     lock_passwd: false
     ssh_authorized_keys:
       - ${public_key}
+
+packages:
+  - python3
