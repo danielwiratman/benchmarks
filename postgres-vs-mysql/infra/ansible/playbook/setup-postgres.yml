@@ -1,0 +1,43 @@
+- name: Configure Postgres
+  tags: configure-pg
+  become: true
+  become_user: postgres
+  block:
+    - name: Configure PostgreSQL to listen on all interfaces
+      lineinfile:
+        path: /etc/postgresql/18/main/postgresql.conf
+        regexp: "^#?listen_addresses"
+        line: "listen_addresses = '*'"
+
+    - name: Allow benchmarker host in pg_hba.conf
+      lineinfile:
+        path: /etc/postgresql/18/main/pg_hba.conf
+        insertafter: EOF
+        line: "host    all    postgres    {{ benchmarker_ip }}/32    scram-sha-256"
+
+    - name: Ensure PostgreSQL user benchuser exists
+      community.postgresql.postgresql_user:
+        name: benchuser
+        password: benchuser
+        encrypted: true
+        login_unix_socket: /var/run/postgresql
+        db: postgres
+        state: present
+
+    - name: Alter user postgres with password "postgres"
+      community.postgresql.postgresql_user:
+        name: postgres
+        password: postgres
+        encrypted: true
+        login_unix_socket: /var/run/postgresql
+        db: postgres
+        state: present
+
+    - name: Create PostgreSQL database benchdb
+      community.postgresql.postgresql_db:
+        name: benchdb
+        owner: benchuser
+        login_unix_socket: /var/run/postgresql
+        login_user: postgres
+        state: present
+      notify: restart postgresql

@@ -1,0 +1,28 @@
+- name: Configure MySQL to listen on all interfaces
+  lineinfile:
+    path: /etc/mysql/mysql.conf.d/mysqld.cnf
+    regexp: "^#?bind-address"
+    line: "bind-address = 0.0.0.0"
+  notify: restart mysql
+
+- name: Create MySQL database benchdb
+  community.mysql.mysql_db:
+    name: benchdb
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    state: present
+
+- name: Create MySQL user benchuser
+  community.mysql.mysql_user:
+    name: benchuser
+    priv: "*.*:ALL,GRANT"
+    host: "%"
+    login_unix_socket: /var/run/mysqld/mysqld.sock
+    plugin: caching_sha2_password
+    plugin_auth_string: benchuser
+    salt: 1234567890abcdefghij
+    state: present
+
+- name: Configure MySQL
+  tags: configure-my
+  become: true
+  block:

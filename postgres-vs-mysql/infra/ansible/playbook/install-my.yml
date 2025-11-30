@@ -1,0 +1,33 @@
+- name: Install MySQL
+  hosts: db
+  become: true
+  tags: mysql
+  tasks:
+    - name: Get mysql-apt-config
+      shell: >
+        curl -L -o /tmp/mysql-apt-config_0.8.36-1_all.deb
+        https://dev.mysql.com/get/mysql-apt-config_0.8.36-1_all.deb
+      args:
+        creates: /tmp/mysql-apt-config_0.8.36-1_all.deb
+
+    - name: Install mysql-apt-config
+      apt:
+        deb: /tmp/mysql-apt-config_0.8.36-1_all.deb
+        state: present
+
+    - name: Update package cache
+      apt:
+        update_cache: true
+        cache_valid_time: 3600
+
+    - name: Install MySQL
+      apt:
+        name:
+          - mysql-server
+        state: present
+
+    - name: Start MySQL
+      service:
+        name: mysql
+        state: started
+        enabled: true
