@@ -1,2 +1,6 @@
-- import_playbook: playbook/all.yml
-- import_playbook: playbook/db.yml
+- import_playbook: playbook/1-common.yml
+- import_playbook: playbook/2-install-my.yml
+- import_playbook: playbook/3-install-pg.yml
+- import_playbook: playbook/4-setup-mysql.yml
+- import_playbook: playbook/5-setup-postgres.yml
+- import_playbook: playbook/6-bench.yml

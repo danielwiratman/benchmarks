@@ -1,8 +1,16 @@
 - name: Configure Postgres
-  tags: configure-pg
+  hosts: db
   become: true
   become_user: postgres
-  block:
+  handlers:
+    - name: restart postgresql
+      service:
+        name: postgresql
+        state: restarted
+  vars:
+    ansible_python_interpreter: /opt/venv/bin/python
+    benchmarker_ip: "{{ hostvars['mybenchvm-benchmarker']['ansible_host'] }}"
+  tasks:
     - name: Configure PostgreSQL to listen on all interfaces
       lineinfile:
         path: /etc/postgresql/18/main/postgresql.conf
@@ -14,6 +22,7 @@
         path: /etc/postgresql/18/main/pg_hba.conf
         insertafter: EOF
         line: "host    all    postgres    {{ benchmarker_ip }}/32    scram-sha-256"
+      notify: restart postgresql
 
     - name: Ensure PostgreSQL user benchuser exists
       community.postgresql.postgresql_user:
@@ -40,4 +49,3 @@
         login_unix_socket: /var/run/postgresql
         login_user: postgres
         state: present
-      notify: restart postgresql

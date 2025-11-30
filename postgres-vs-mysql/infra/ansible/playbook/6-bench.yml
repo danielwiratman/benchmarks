@@ -1,0 +1,33 @@
+- name: Setup benchmark
+  hosts: db
+  become: true
+  vars:
+    ansible_python_interpreter: /opt/venv/bin/python
+  tasks:
+    - name: Upload init.sql
+      become: true
+      tags: upload
+      copy:
+        src: ../../../sql
+        dest: /opt/
+        mode: "0644"
+
+    - name: Apply init sql to dbs
+      become: true
+      tags: apply
+      block:
+        - name: Apply init sql to PostgreSQL
+          community.postgresql.postgresql_script:
+            login_user: benchuser
+            login_password: benchuser
+            login_host: localhost
+            db: benchdb
+            path: /opt/sql/postgres-init.sql
+        - name: Apply init sql to MySQL
+          community.mysql.mysql_db:
+            login_user: benchuser
+            login_password: benchuser
+            login_host: localhost
+            name: benchdb
+            state: import
+            target: /opt/sql/mysql-init.sql
