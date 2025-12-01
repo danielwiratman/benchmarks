@@ -1,9 +1,9 @@
 - name: Setup MySQL
   hosts: db
-  become: true
   tags: mysql
   handlers:
     - name: restart mysql
+      become: true
       service:
         name: mysql
         state: restarted
@@ -11,6 +11,7 @@
     ansible_python_interpreter: /opt/venv/bin/python
   tasks:
     - name: Configure MySQL to listen on all interfaces
+      become: true
       lineinfile:
         path: /etc/mysql/mysql.conf.d/mysqld.cnf
         regexp: "^#?bind-address"
@@ -18,12 +19,14 @@
       notify: restart mysql
 
     - name: Create MySQL database benchdb
+      become: true
       community.mysql.mysql_db:
         name: benchdb
         login_unix_socket: /var/run/mysqld/mysqld.sock
         state: present
 
     - name: Create MySQL user benchuser
+      become: true
       community.mysql.mysql_user:
         name: benchuser
         priv: "*.*:ALL,GRANT"

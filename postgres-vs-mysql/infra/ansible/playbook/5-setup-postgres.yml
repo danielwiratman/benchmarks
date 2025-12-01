@@ -1,9 +1,11 @@
 - name: Configure Postgres
   hosts: db
+  tags: postgres
   become: true
   become_user: postgres
   handlers:
     - name: restart postgresql
+      become: true
       service:
         name: postgresql
         state: restarted
